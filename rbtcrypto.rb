@@ -211,8 +211,8 @@ end
 def bitcoin_generate_new_private_key( entropy=nil ) 
 
 	# Use a better random seed.
-	srand( Time.now().to_i + entropy.to_i )
-	random_256bit = rand( 2 ** 300 ) % ( 2 ** 256 )  % @order
+	srand( Digest::SHA256.hexdigest( ( Time.now().to_i ** 2 + entropy.to_i ).to_s  ).to_i(16) )
+	random_256bit = rand(  2 ** 256 )  % @order
 	
 	hex_str = random_256bit.to_s(16)
 
@@ -231,9 +231,9 @@ def bitcoin_generate_key_pair()
 
 	privkey = bitcoin_generate_new_private_key()
 	pubkey  = bitcoin_priv_to_pub( privkey )
-	
+
 	return [ privkey , pubkey ]
-	
+
 end
 
 
