@@ -1,5 +1,5 @@
 
-require 'rbtcrypto.rb'
+require_relative 'rbtcrypto.rb'
 
 #-------------
 def main( argv )

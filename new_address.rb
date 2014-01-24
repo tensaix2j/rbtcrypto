@@ -1,14 +1,13 @@
 
-require 'rbtcrypto.rb'
+require_relative 'rbtcrypto.rb'
 
 #-------------
 def main( argv )
 	
-	privkey = bitcoin_generate_new_private_key()
-	pubkey  = bitcoin_priv_to_pub( privkey )
+	keypair = bitcoin_generate_key_pair() 
 	
-	puts "Private key : #{privkey}"
-	puts "Public  key : #{pubkey}"
+	puts "Private key : #{ keypair[0] }"
+	puts "Public  key : #{ keypair[1] }"
 
 end
 

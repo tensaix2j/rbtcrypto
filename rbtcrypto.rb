@@ -226,7 +226,15 @@ def bitcoin_generate_new_private_key( entropy=nil )
 	return 	number_to_base58str(s4)
 end
 
+#-----
+def bitcoin_generate_key_pair() 
 
+	privkey = bitcoin_generate_new_private_key()
+	pubkey  = bitcoin_priv_to_pub( privkey )
+	
+	return [ privkey , pubkey ]
+	
+end
 
 
 
