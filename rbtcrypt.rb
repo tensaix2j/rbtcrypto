@@ -13,6 +13,9 @@ require 'digest/sha2'
 @G_y 	= 0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8
 @order 	= 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
 
+# elliptic curve multiplication, addition is based on python's ecdsa library implementation
+
+
 @base58_chars = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
 
@@ -141,7 +144,6 @@ end
 #------
 def number_to_base58str( n )
 
-	base58_chars = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 	str = ""
 	while n > 0
 		str.insert( 0 , @base58_chars[ n % 58 ].chr ) 
