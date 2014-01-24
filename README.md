@@ -25,6 +25,11 @@ To generate new address:
 ruby new_address.rb 
 ```
 
+To verify address valid or not
+```sh
+ruby verify_address.rb <private or public key>
+```
+
 
 
 

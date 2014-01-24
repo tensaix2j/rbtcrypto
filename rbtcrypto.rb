@@ -176,8 +176,9 @@ end
 	
 def bitcoin_priv_to_pub( privkey )	
 
+	assert("Invalid Address") { bitcoin_verify_privkey( privkey ) }
 	# stripping off the checksum
-	privkey_num = base58str_tonum( privkey ) / (2**32) % (2**256)
+	privkey_num = bitcoin_wif_to_privnum( privkey )
 	pubkey_point = mul( [ @G_x, @G_y] , privkey_num )
 	
 	x_str = number_to_string(  pubkey_point[0] , @order )
@@ -199,31 +200,37 @@ end
 
 #-----------
 def zfill( str, zlen ) 
-	
-	if zlen - str.length > 0
-		return "0" * ( zlen - str.length ) + str
-	else
-		return str			
-	end		
+	return zlen - str.length > 0 ? "0" * ( zlen - str.length ) + str : str
 end
 
 #------
 def bitcoin_generate_new_private_key( entropy=nil ) 
 
-	# Use a better random seed.
+	# Todo: Use a better random seed.
 	srand( Digest::SHA256.hexdigest( ( Time.now().to_i ** 2 + entropy.to_i ).to_s  ).to_i(16) )
 	random_256bit = rand(  2 ** 256 )  % @order
-	
-	hex_str = random_256bit.to_s(16)
+	return 	bitcoin_privnum_to_wif( random_256bit) 
 
-	s1 =  "80" + zfill( hex_str[2...hex_str.length] , 64 ) 
+end
 
+#-----
+# private key to wallet import format
+def bitcoin_privnum_to_wif( num )
+
+	extended_hexstr =  "80" + zfill( num.to_s(16) , 64 ) 
 	# private key checksum ...
-	s2 = Digest::SHA256.hexdigest( unhexlify(s1) )
-	s3 = Digest::SHA256.hexdigest( unhexlify(s2 ) )
-	s4 = ( s1 + s3[0...8] ).to_i(16)
+	r1 = Digest::SHA256.hexdigest( unhexlify(extended_hexstr) )
+	r2 = Digest::SHA256.hexdigest( unhexlify(r1) )
 
-	return 	number_to_base58str(s4)
+	return number_to_base58str( (extended_hexstr + r2[0...8] ).to_i(16) )
+end
+
+
+#-----
+# wallet import format to private key
+def bitcoin_wif_to_privnum( wif ) 
+
+	return base58str_tonum( wif )/ (2**32) % (2**256)
 end
 
 #-----
@@ -235,6 +242,35 @@ def bitcoin_generate_key_pair()
 	return [ privkey , pubkey ]
 
 end
+
+
+#-------
+def bitcoin_verify_pubkey( pubkey ) 
+
+	pubkey_num_with_chksum 	= base58str_tonum( pubkey )
+	pubkey_chksum 	 		= pubkey_num_with_chksum % (2**32)
+	pubkey_num 		 		= pubkey_num_with_chksum / (2**32)
+
+	# sha 2 times to get the chksum
+	r1 = Digest::SHA256.hexdigest( unhexlify( zfill( pubkey_num.to_s(16), 42 ) )  )
+	r2 = Digest::SHA256.hexdigest( unhexlify(r1) )
+
+	return r2[0...8].to_i(16) == pubkey_chksum
+
+end
+
+#----
+def bitcoin_verify_privkey( privkey ) 
+
+	return bitcoin_privnum_to_wif( bitcoin_wif_to_privnum( privkey ) ) == privkey
+end
+
+
+
+
+
+
+
 
 
 
