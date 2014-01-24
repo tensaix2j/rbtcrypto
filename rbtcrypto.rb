@@ -176,6 +176,7 @@ end
 	
 def bitcoin_priv_to_pub( privkey )	
 
+	# stripping off the checksum
 	privkey_num = base58str_tonum( privkey ) / (2**32) % (2**256)
 	pubkey_point = mul( [ @G_x, @G_y] , privkey_num )
 	
@@ -216,6 +217,8 @@ def bitcoin_generate_new_private_key( entropy=nil )
 	hex_str = random_256bit.to_s(16)
 
 	s1 =  "80" + zfill( hex_str[2...hex_str.length] , 64 ) 
+
+	# private key checksum ...
 	s2 = Digest::SHA256.hexdigest( unhexlify(s1) )
 	s3 = Digest::SHA256.hexdigest( unhexlify(s2 ) )
 	s4 = ( s1 + s3[0...8] ).to_i(16)

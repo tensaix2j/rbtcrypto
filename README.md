@@ -1,8 +1,8 @@
 
+Ruby Bitcoin Toolkit
+====================
 
-
-
-Minimum ruby code to generate bitcoin public address from private address.
+Created for self educational purpose. Use it at your own risk. 
 
 Reference: Python ecdsa library for elliptic curve multiplication, addition and inverse_mod operations.
 
