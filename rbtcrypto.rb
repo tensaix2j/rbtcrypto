@@ -196,17 +196,32 @@ def bitcoin_priv_to_pub( privkey )
 
 end
 
-#----------------------
-def main( argv )
-	if argv.length > 0 
-		puts bitcoin_priv_to_pub argv[0]
+#-----------
+def zfill( str, zlen ) 
+	
+	if zlen - str.length > 0
+		return "0" * ( zlen - str.length ) + str
 	else
-		printf "Usage ruby %s <privatekey>", __FILE__
-	end	
+		return str			
+	end		
 end
 
+#------
+def bitcoin_generate_new_private_key( entropy=nil ) 
 
-main ARGV
+	# Use a better random seed.
+	srand( Time.now().to_i + entropy.to_i )
+	random_256bit = rand( 2 ** 300 ) % ( 2 ** 256 )  % @order
+	
+	hex_str = random_256bit.to_s(16)
+
+	s1 =  "80" + zfill( hex_str[2...hex_str.length] , 64 ) 
+	s2 = Digest::SHA256.hexdigest( unhexlify(s1) )
+	s3 = Digest::SHA256.hexdigest( unhexlify(s2 ) )
+	s4 = ( s1 + s3[0...8] ).to_i(16)
+
+	return 	number_to_base58str(s4)
+end
 
 
 

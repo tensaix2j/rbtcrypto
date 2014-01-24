@@ -1,17 +1,24 @@
 
 
+Minimum ruby code to generate bitcoin public address from private address.
 
-My minimum code to generate bitcoin public address from private address.
-
-Reference: Python's ecdsa library for elliptic curve multiplication, addition and inverse_mod operations.
+Reference: Python ecdsa library for elliptic curve multiplication, addition and inverse_mod operations.
 
 
 Usage
 --------------
 
 ```sh
-ruby rbtcrypt.rb <private address>
+ruby priv_to_pub.rb <private address>
 ```
+
+```sh
+ruby new_address.rb 
+```
+
+
+
+
 
 
 
