@@ -244,6 +244,40 @@ def bitcoin_generate_key_pair()
 end
 
 
+
+#-----
+def bitcoin_generate_key_pair_by_passphrase( passphrase ) 
+
+	passphrase_sha256 =  Digest::SHA256.hexdigest( passphrase )
+	
+	privkey_num = passphrase_sha256.to_i(16)
+	pubkey_point = mul( [ @G_x, @G_y] , privkey_num )
+	
+	x_str = number_to_string(  pubkey_point[0] , @order )
+	y_str = number_to_string(  pubkey_point[1] , @order )
+	
+	pubkey_sha256 =  Digest::SHA256.hexdigest( unhexlify( "04" + x_str + y_str ) )
+	pubkey_ripemd160 =  Digest::RMD160.hexdigest( unhexlify( pubkey_sha256 ) )
+
+	# now the checksum
+	chksum_sha256_r1 = Digest::SHA256.hexdigest( unhexlify( "00" + pubkey_ripemd160 ) )
+	chksum_sha256_r2 = Digest::SHA256.hexdigest( unhexlify( chksum_sha256_r1 ) )
+
+	pubkey_num = ( pubkey_ripemd160 + chksum_sha256_r2[0...8]).to_i(16)
+	pubkey_base58 = number_to_base58str( pubkey_num )
+	
+	privkey =  bitcoin_privnum_to_wif( privkey_num )
+	pubkey  =  "1" + pubkey_base58
+
+	return [ privkey , pubkey ]
+	
+end
+
+
+
+
+
+
 #-------
 def bitcoin_verify_pubkey( pubkey ) 
 
