@@ -30,6 +30,13 @@ To verify address valid or not
 ruby verify_address.rb <private or public key>
 ```
 
+To generate key pairs from passphrase:
+
+
+```sh
+ruby brainwallet.rb <passphrase>
+```
+
 
 
 
