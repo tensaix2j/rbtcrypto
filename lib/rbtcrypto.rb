@@ -1,6 +1,9 @@
 
 require 'rubygems'
+require 'open-uri'
 require 'digest/sha2'
+require 'bigdecimal'
+require 'json'
 
 
 @INFINITY = [nil,nil]
@@ -172,13 +175,9 @@ def unhexlify(msg)
 end
 
 
-#---------------
-	
-def bitcoin_priv_to_pub( privkey )	
+#------------
+def bitcoin_privnum_to_pubkey( privkey_num )
 
-	assert("Invalid Address") { bitcoin_verify_privkey( privkey ) }
-	# stripping off the checksum
-	privkey_num = bitcoin_wif_to_privnum( privkey )
 	pubkey_point = mul( [ @G_x, @G_y] , privkey_num )
 	
 	x_str = number_to_string(  pubkey_point[0] , @order )
@@ -194,7 +193,17 @@ def bitcoin_priv_to_pub( privkey )
 	pubkey_num = ( pubkey_ripemd160 + chksum_sha256_r2[0...8]).to_i(16)
 	pubkey_base58 = number_to_base58str( pubkey_num )
 	return "1" + pubkey_base58
+end
 
+
+#---------------
+	
+def bitcoin_privkey_to_pubkey( privkey )	
+
+	assert("Invalid Address") { bitcoin_verify_privkey( privkey ) }
+	# stripping off the checksum
+	privnum = bitcoin_wif_to_privnum( privkey )
+	return bitcoin_privnum_to_pubkey( privnum )
 
 end
 
@@ -203,15 +212,7 @@ def zfill( str, zlen )
 	return zlen - str.length > 0 ? "0" * ( zlen - str.length ) + str : str
 end
 
-#------
-def bitcoin_generate_new_private_key( entropy=nil ) 
 
-	# Todo: Use a better random seed.
-	srand( Digest::SHA256.hexdigest( ( Time.now().to_i ** 2 + entropy.to_i ).to_s  ).to_i(16) )
-	random_256bit = rand(  2 ** 256 )  % @order
-	return 	bitcoin_privnum_to_wif( random_256bit) 
-
-end
 
 #-----
 # private key to wallet import format
@@ -236,8 +237,10 @@ end
 #-----
 def bitcoin_generate_key_pair() 
 
-	privkey = bitcoin_generate_new_private_key()
-	pubkey  = bitcoin_priv_to_pub( privkey )
+	# Todo: Use a better random seed.
+	privnum = rand(  2 ** 256 )  % @order
+	privkey = bitcoin_privnum_to_wif( privnum )
+	pubkey  = bitcoin_privnum_to_pubkey( privnum )
 
 	return [ privkey , pubkey ]
 
@@ -249,25 +252,10 @@ end
 def bitcoin_generate_key_pair_by_passphrase( passphrase ) 
 
 	passphrase_sha256 =  Digest::SHA256.hexdigest( passphrase )
-	
-	privkey_num = passphrase_sha256.to_i(16)
-	pubkey_point = mul( [ @G_x, @G_y] , privkey_num )
-	
-	x_str = number_to_string(  pubkey_point[0] , @order )
-	y_str = number_to_string(  pubkey_point[1] , @order )
-	
-	pubkey_sha256 =  Digest::SHA256.hexdigest( unhexlify( "04" + x_str + y_str ) )
-	pubkey_ripemd160 =  Digest::RMD160.hexdigest( unhexlify( pubkey_sha256 ) )
-
-	# now the checksum
-	chksum_sha256_r1 = Digest::SHA256.hexdigest( unhexlify( "00" + pubkey_ripemd160 ) )
-	chksum_sha256_r2 = Digest::SHA256.hexdigest( unhexlify( chksum_sha256_r1 ) )
-
-	pubkey_num = ( pubkey_ripemd160 + chksum_sha256_r2[0...8]).to_i(16)
-	pubkey_base58 = number_to_base58str( pubkey_num )
-	
-	privkey =  bitcoin_privnum_to_wif( privkey_num )
-	pubkey  =  "1" + pubkey_base58
+		
+	privnum = passphrase_sha256.to_i(16)
+	privkey =  bitcoin_privnum_to_wif( privnum )
+	pubkey  =  bitcoin_privnum_to_pubkey( privnum )
 
 	return [ privkey , pubkey ]
 	
@@ -299,11 +287,45 @@ def bitcoin_verify_privkey( privkey )
 	return bitcoin_privnum_to_wif( bitcoin_wif_to_privnum( privkey ) ) == privkey
 end
 
+#-
+
+#----------
+def get_balance( pubkey ) 
+	
+	url = "http://blockchain.info/address/#{ pubkey }?format=json"
+ 	res = JSON.parse(open(url).read)
+	balance = BigDecimal.new(res["final_balance"]) / 100000000
+
+	return balance
+end
+
+#----------
+def get_unspent( pubkey ) 
+
+	url = "https://blockchain.info/unspent?active=#{ @pubkey }&format=json"
+	res = JSON.parse(open(url).read)
+	unspent_outputs = res["unspent_outputs"]
+	return unspent_outputs
+end
 
 
+#-----
+# In progress...
+def make_raw_transaction( sender_privkey, sender_prev_transaction_hash, sender_pubkey, recipient_pubkey , amount ) 
+	
+	
 
-
-
+	#return 	"01000000" + 	# 4 bytes version
+    #		"01" + 			# varint for number of inputs
+    #		outputTransactionHash.decode('hex')[::-1].encode('hex') + # reverse outputTransactionHash
+    #		struct.pack('<L', sourceIndex).encode('hex') +
+    #		'%02x' % len(scriptSig.decode('hex')) + scriptSig +
+    #		"ffffffff" + # sequence
+    #		"%02x" % len(outputs) + # number of outputs
+    #		formattedOutputs +
+    #		"00000000" # lockTime
+    		
+end
 
 
 
