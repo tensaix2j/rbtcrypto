@@ -174,6 +174,64 @@ def unhexlify(msg)
 	[msg].pack("H*")
 end
 
+#-------------
+def sign_with_privnum( privkey_num , msg )
+
+	msg_hexstr = hexlify(msg)
+	msg_num    = msg_hexstr.to_i(16)
+
+	k = rand(@order-1) + 1  
+	#k = 15672977351170312799829257531283026088254387808041898846011970415821208542635
+
+	p1 = mul( [ @G_x, @G_y] , k )
+	r = p1[0]	
+	s = ( inverse_mod( k, @order ) * ( msg_num + ( privkey_num * r ) % @order ) ) % @order
+	
+	r_str = number_to_string( r, @order ) 
+	s_str = number_to_string( s, @order )
+
+	return der_encode_sequence( [ der_encode_integer(r), der_encode_integer(s) ] ) + "\x01"
+
+end
+
+#----
+def der_encode_integer( r )
+
+	assert("r >= 0") { r >= 0 }
+	h = r.to_s(16) 
+    h = "0" + h if h.length % 2 == 1
+    s = unhexlify(h)
+    num = s[0].ord
+    return "\x02" +  ((num <= 0x7f) ? s.length.chr : (s.length + 1).chr + "\x00"  ) + s
+end
+
+#----
+def der_encode_sequence( encoded_pieces )
+    
+    total_len = 0
+	encoded_pieces.each { |piece|
+		total_len += piece.length
+	}
+
+	return "\x30" + der_encode_length(total_len) + encoded_pieces.join("")
+
+end
+
+#---
+def der_encode_length( l)
+
+	assert("l >= 0") { l >= 0 }
+	if l < 0x80
+        return l.chr
+    end
+	s = l.to_s(16)
+    s = "0" + s if s.length % 2 == 1
+    s = unhexlify(s)
+    return ( 0x80  | s.length ).chr + s
+end
+
+
+
 
 #------------
 def bitcoin_privnum_to_pubkey( privkey_num )
@@ -196,6 +254,7 @@ def bitcoin_privnum_to_pubkey( privkey_num )
 end
 
 
+
 #---------------
 	
 def bitcoin_privkey_to_pubkey( privkey )	
@@ -207,18 +266,13 @@ def bitcoin_privkey_to_pubkey( privkey )
 
 end
 
-#-----------
-def zfill( str, zlen ) 
-	return zlen - str.length > 0 ? "0" * ( zlen - str.length ) + str : str
-end
-
 
 
 #-----
 # private key to wallet import format
 def bitcoin_privnum_to_wif( num )
 
-	extended_hexstr =  "80" + zfill( num.to_s(16) , 64 ) 
+	extended_hexstr =  "80" +  num.to_s(16).rjust( 64, "0" ) 
 	# private key checksum ...
 	r1 = Digest::SHA256.hexdigest( unhexlify(extended_hexstr) )
 	r2 = Digest::SHA256.hexdigest( unhexlify(r1) )
@@ -229,6 +283,11 @@ end
 
 #-----
 # wallet import format to private key
+def bitcoin_privkey_to_privnum( privkey) 
+	return bitcoin_wif_to_privnum( privkey )
+end
+
+# Same thing
 def bitcoin_wif_to_privnum( wif ) 
 
 	return base58str_tonum( wif )/ (2**32) % (2**256)
@@ -262,8 +321,16 @@ def bitcoin_generate_key_pair_by_passphrase( passphrase )
 end
 
 
+#----
+def pubkey_to_pubnum( pubkey )
 
+	pubkey_num_with_chksum 	= base58str_tonum( pubkey )
+	pubkey_chksum 	 		= pubkey_num_with_chksum % (2**32)
+	pubkey_num 		 		= pubkey_num_with_chksum / (2**32)
 
+	return pubkey_num
+
+end
 
 
 #-------
@@ -274,7 +341,7 @@ def bitcoin_verify_pubkey( pubkey )
 	pubkey_num 		 		= pubkey_num_with_chksum / (2**32)
 
 	# sha 2 times to get the chksum
-	r1 = Digest::SHA256.hexdigest( unhexlify( zfill( pubkey_num.to_s(16), 42 ) )  )
+	r1 = Digest::SHA256.hexdigest( unhexlify(  pubkey_num.to_s(16).rjust( 42, "0")  )  )
 	r2 = Digest::SHA256.hexdigest( unhexlify(r1) )
 
 	return r2[0...8].to_i(16) == pubkey_chksum
@@ -292,6 +359,7 @@ end
 #----------
 def get_balance( pubkey ) 
 	
+	
 	url = "http://blockchain.info/address/#{ pubkey }?format=json"
  	res = JSON.parse(open(url).read)
 	balance = BigDecimal.new(res["final_balance"]) / 100000000
@@ -302,31 +370,223 @@ end
 #----------
 def get_unspent( pubkey ) 
 
-	url = "https://blockchain.info/unspent?active=#{ @pubkey }&format=json"
-	res = JSON.parse(open(url).read)
-	unspent_outputs = res["unspent_outputs"]
+	require "net/http"
+	require 'openssl'
+
+	uri = URI.parse("https://blockchain.info/unspent?")
+	args = {active: pubkey, format: "json" }
+
+	uri.query = URI.encode_www_form(args)
+	http = Net::HTTP.new(uri.host, uri.port)
+	http.use_ssl = true
+	http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+	request = Net::HTTP::Get.new(uri.request_uri)
+	response = http.request(request)
+
+	unspent_outputs = nil
+	begin
+		if response.body[/No free outputs to spend/]
+			puts "No free outputs to spend!!"
+		else	
+			res = JSON.parse(  response.body )
+			unspent_outputs = res["unspent_outputs"]
+		end
+	rescue Exception=>e
+		
+	end
+
 	return unspent_outputs
+
 end
 
 
-#-----
-# In progress...
-def make_raw_transaction( sender_privkey, sender_prev_transaction_hash, sender_pubkey, recipient_pubkey , amount ) 
-	
+
+
+#----------------
+# Reference: https://gist.github.com/Sjors/5574485#file-bitcoin-pay-rb-L265
+ 
+ #-----------
+def make_raw_transaction( sender_pubkey, recipient_pubkey , sender_privkey, amount, transaction_fee = 0.0  ) 
 	
 
-	#return 	"01000000" + 	# 4 bytes version
-    #		"01" + 			# varint for number of inputs
-    #		outputTransactionHash.decode('hex')[::-1].encode('hex') + # reverse outputTransactionHash
-    #		struct.pack('<L', sourceIndex).encode('hex') +
-    #		'%02x' % len(scriptSig.decode('hex')) + scriptSig +
-    #		"ffffffff" + # sequence
-    #		"%02x" % len(outputs) + # number of outputs
-    #		formattedOutputs +
-    #		"00000000" # lockTime
-    		
+	inputs = []
+
+	unspent_outputs = get_unspent( sender_pubkey )
+	assert("No unspent outputs") { unspent_outputs }
+
+	input_total = 0.0
+	unspent_outputs.each do |output|
+	    
+	    inputs <<  {
+	      previousTx: [output["tx_hash"]].pack("H*").reverse.unpack("H*")[0], # Reverse
+	      index: output["tx_output_n"],
+	      scriptSig: nil # We'll sign it later
+	    }
+
+	    amount = BigDecimal.new(output["value"]) / 100000000
+	    puts "Using #{amount.to_f} from output #{output["tx_output_n"]} of transaction #{output["tx_hash"][0..5]}..."
+	    input_total += amount
+	    break if input_total >= amount + transaction_fee
+	end
+
+	
+
+	change = input_total - transaction_fee - amount
+	puts "Spend #{amount.to_f} and return #{ change.to_f } as change."
+ 
+	raise "Unable to process inputs for transaction" if input_total < amount + transaction_fee || change < 0
+ 	
+	
+ 	sender_pubnum 		= pubkey_to_pubnum( sender_pubkey )
+	recipient_pubnum 	= pubkey_to_pubnum( recipient_pubkey )
+
+ 	outputs = [ 
+	  { # Amount to transfer (leave out the leading zeros and 4 byte checksum)
+	      value: amount, 
+	      scriptPubKey: "OP_DUP OP_HASH160 " + (recipient_pubnum.to_s(16).size / 2).to_s(16) + " " + recipient_pubnum.to_s(16) + " OP_EQUALVERIFY OP_CHECKSIG "
+	      # OP_DUP, etc is the default payment script: https://en.bitcoin.it/wiki/Script 
+	    }
+	]
+	 
+	if change > 0
+	  outputs << { 
+	    value: change, 
+	    scriptPubKey: "OP_DUP OP_HASH160 " + (sender_pubnum.to_s(16).size / 2).to_s(16) + " " + sender_pubnum.to_s(16) + " OP_EQUALVERIFY OP_CHECKSIG "
+	  }
+	  
+	end   
+
+	scriptSig = "OP_DUP OP_HASH160 " + (sender_pubnum.to_s(16).size / 2).to_s(16) + " " + sender_pubnum.to_s(16) + " OP_EQUALVERIFY OP_CHECKSIG "
+
+	inputs.collect!{ |input|
+		{
+			previousTx: input[:previousTx],
+			index: input[:index],
+			# Add 1 byte for each script opcode:
+			scriptLength: sender_pubnum.to_s(16).length / 2 + 5, 
+			scriptSig: scriptSig, 
+			sequence_no: "ffffffff" # Ignored
+		}
+	} 
+
+	
+
+	transaction = {
+		version: 1,
+		in_counter: inputs.count,
+		inputs: inputs,
+		out_counter: outputs.count,
+		outputs: outputs,
+		lock_time: 0,
+		hash_code_type: "01000000"
+	}
+    
+    return transaction
 end
 
+
+#----------------------
+def bitcoin_privnum_to_pubkey65_hexstring( privkey_num )
+
+	pubkey_point = mul( [ @G_x, @G_y] , privkey_num )
+	
+	x_str = number_to_string(  pubkey_point[0] , @order )
+	y_str = number_to_string(  pubkey_point[1] , @order )
+	
+	return "04" + x_str + y_str 
+
+end
+
+#---------------
+def make_signed_transaction( transaction , privkey )
+
+	raw_transaction = serialize_transaction( transaction )	
+
+	sha_first = (Digest::SHA2.new << [raw_transaction].pack("H*")).to_s
+	sha_second = (Digest::SHA2.new << [sha_first].pack("H*")).to_s
+	 
+	puts "\nHash that we're going to sign: #{sha_second}"
+	 
+	privkey_num    		= bitcoin_wif_to_privnum( privkey )
+
+	pubkey65_hexstring  = bitcoin_privnum_to_pubkey65_hexstring( privkey_num )
+
+	
+	signature_binary = sign_with_privnum( privkey_num , sha_second )
+	signature = signature_binary.unpack("H*").first
+	 
+	hash_code_type = "01"
+	signature_plus_hash_code_type_length = little_endian_hex_of_n_bytes((signature + hash_code_type).length / 2, 1)
+	pub_key_length = little_endian_hex_of_n_bytes( pubkey65_hexstring.length / 2, 1)
+	 
+	scriptSig = signature_plus_hash_code_type_length + " " + signature + " "  + hash_code_type + " "  + pub_key_length + " " + pubkey65_hexstring
+	 
+	# Replace scriptSig and scriptLength for each of the inputs:
+	transaction[:inputs].collect!{|input| 
+	  {
+	    previousTx:   input[:previousTx],
+	    index:        input[:index],
+	    scriptLength: scriptSig.gsub(" ","").length / 2,
+	    scriptSig:    scriptSig,
+	    sequence_no:  input[:sequence_no]
+	  }
+	}
+	 
+	transaction[:hash_code_type] = ""
+	signed_transaction = serialize_transaction( transaction )
+		 
+	return signed_transaction
+
+end
+
+
+#---------------
+def little_endian_hex_of_n_bytes(i, n) 
+	i.to_s(16).rjust(n * 2,"0").scan(/(..)/).reverse.join()
+end
+ 
+
+#---------------
+def parse_script(script)
+	script.gsub("OP_DUP", "76").gsub("OP_HASH160", "a9").gsub("OP_EQUALVERIFY", "88").gsub("OP_CHECKSIG", "ac")
+end
+ 
+
+
+#---------------
+def serialize_transaction(transaction)
+  
+	tx = ""
+	# Little endian 4 byte version number: 1 -> 01 00 00 00
+	tx << little_endian_hex_of_n_bytes(transaction[:version],4)
+	# You can also use: transaction[:version].pack("V") 
+	 
+	# Number of inputs
+	tx << little_endian_hex_of_n_bytes(transaction[:in_counter],1)
+	 
+	transaction[:inputs].each do |input|
+		tx << little_endian_hex_of_n_bytes(input[:previousTx].hex, input[:previousTx].length / 2)
+		tx << little_endian_hex_of_n_bytes(input[:index],4) 
+		tx << little_endian_hex_of_n_bytes(input[:scriptLength], 1 )
+		tx << parse_script(input[:scriptSig]) 
+		tx << input[:sequence_no] 
+	end
+	  
+	# Number of outputs
+	tx << little_endian_hex_of_n_bytes(transaction[:out_counter],1)
+	  
+	transaction[:outputs].each do |output|
+		tx << little_endian_hex_of_n_bytes((output[:value] * 100000000).to_i,8) 
+		unparsed_script = output[:scriptPubKey]
+		# Parse the script commands into hex opcodes (yes this is lame):
+		tx << little_endian_hex_of_n_bytes(parse_script(unparsed_script).gsub(" ", "").length / 2, 1) 
+		tx << parse_script(unparsed_script)
+	end
+	  
+	tx << little_endian_hex_of_n_bytes(transaction[:lock_time],4)
+	tx << transaction[:hash_code_type] # This is empty after signing
+	return tx.gsub(" ","")
+end
 
 
 

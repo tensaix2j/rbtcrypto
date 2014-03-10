@@ -38,5 +38,13 @@ ruby brainwallet.rb <passphrase>
 ```
 
 
+To craft Transaction and drop into https://blockchain.info/pushtx
+
+
+```sh
+ruby maketransaction.rb  <from pubkey> <to pubkey> <privkey> <amount>
+```
+
+
 
 
