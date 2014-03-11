@@ -8,12 +8,21 @@ Created for self educational purpose. Use it at your own risk.
 Usage
 --------------
 
-To get the public address from private key:
+To get the public address from private key(WIF):
 
 
 ```sh
 ruby priv_to_pub.rb <private key(WIF)>
 ```
+
+
+To get the public address from private key number(256 bit number):
+
+
+```sh
+ruby privnum_to_pub.rb <private key(256 bit number)>
+```
+
 
 
 To generate new address:
