@@ -4,8 +4,6 @@ Ruby Bitcoin Toolkit
 
 Created for self educational purpose. Use it at your own risk. 
 
-Reference: Python ecdsa library for elliptic curve multiplication, addition and inverse_mod operations.
-
 
 Usage
 --------------
@@ -14,7 +12,7 @@ To get the public address from private key:
 
 
 ```sh
-ruby priv_to_pub.rb <private key>
+ruby priv_to_pub.rb <private key(WIF)>
 ```
 
 
@@ -27,7 +25,7 @@ ruby new_address.rb
 
 To verify address valid or not
 ```sh
-ruby verify_address.rb <private or public key>
+ruby verify_address.rb <private key(WIF) or public key>
 ```
 
 To generate key pairs from passphrase:
@@ -42,7 +40,7 @@ To craft Transaction and drop into https://blockchain.info/pushtx
 
 
 ```sh
-ruby maketransaction.rb  <from pubkey> <to pubkey> <privkey> <amount>
+ruby maketransaction.rb  <sender public key> <receiver public key> <sender private key(WIF)> <amount>
 ```
 
 
