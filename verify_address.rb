@@ -12,7 +12,7 @@ def main( argv )
  		end
 
 	else
-		printf "Usage : ruby %s <private key | public key>\n", __FILE__
+		printf "Usage : ruby %s <private key | public address>\n", __FILE__
 	end	
 end
 

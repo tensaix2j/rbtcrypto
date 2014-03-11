@@ -34,7 +34,7 @@ ruby new_address.rb
 
 To verify address valid or not
 ```sh
-ruby verify_address.rb <private key(WIF) or public key>
+ruby verify_address.rb <private key(WIF) or public address>
 ```
 
 To generate key pairs from passphrase:
@@ -49,7 +49,7 @@ To craft Transaction and drop into https://blockchain.info/pushtx
 
 
 ```sh
-ruby maketransaction.rb  <sender public key> <receiver public key> <sender private key(WIF)> <amount>
+ruby maketransaction.rb  <sender public address> <receiver public address> <sender private key(WIF)> <amount>
 ```
 
 
