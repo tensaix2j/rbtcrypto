@@ -2,7 +2,6 @@
 require 'rubygems'
 require 'open-uri'
 require 'digest/sha2'
-require 'bigdecimal'
 require 'json'
 
 
@@ -362,7 +361,7 @@ def get_balance( pubkey )
 	
 	url = "http://blockchain.info/address/#{ pubkey }?format=json"
  	res = JSON.parse(open(url).read)
-	balance = BigDecimal.new(res["final_balance"]) / 100000000
+	balance = res["final_balance"]
 
 	return balance
 end
@@ -406,81 +405,85 @@ end
 # Reference: https://gist.github.com/Sjors/5574485#file-bitcoin-pay-rb-L265
  
  #-----------
-def make_raw_transaction( sender_pubkey, recipient_pubkey , sender_privkey, amount, transaction_fee = 0.0  ) 
+def make_raw_transaction( sender_pubkey, recipient_pubkey , amount, transaction_fee = 0  ) 
 	
+	sender_pubnum 		= pubkey_to_pubnum( sender_pubkey )
+	recipient_pubnum 	= pubkey_to_pubnum( recipient_pubkey )
 
+	transaction_fee = transaction_fee.to_i
 	inputs = []
 
 	unspent_outputs = get_unspent( sender_pubkey )
 	assert("No unspent outputs") { unspent_outputs }
 
-	input_total = 0.0
+	input_total = 0
 	unspent_outputs.each do |output|
 	    
-	    inputs <<  {
-	      previousTx: [output["tx_hash"]].pack("H*").reverse.unpack("H*")[0], # Reverse
-	      index: output["tx_output_n"],
-	      scriptSig: nil # We'll sign it later
-	    }
-
-	    amount = BigDecimal.new(output["value"]) / 100000000
-	    puts "Using #{amount.to_f} from output #{output["tx_output_n"]} of transaction #{output["tx_hash"][0..5]}..."
-	    input_total += amount
+	    input = {}
+	    input[:previousTx] 	= [output["tx_hash"]].pack("H*").reverse.unpack("H*")[0]
+	    input[:index] 		= output["tx_output_n"]
+	    inputs << input
+	    
+	    input_total +=  output["value"].to_i
+	    puts "Using #{amount} satoshis from output #{output["tx_output_n"]} of transaction #{output["tx_hash"][0..5]}..."
 	    break if input_total >= amount + transaction_fee
 	end
 
-	
-
 	change = input_total - transaction_fee - amount
-	puts "Spend #{amount.to_f} and return #{ change.to_f } as change."
+	puts "Spend #{amount} satoshis and return #{ change } satoshis as change."
  
 	raise "Unable to process inputs for transaction" if input_total < amount + transaction_fee || change < 0
  	
+	# Blockchain does not give this...So use the default.
+
+	# A Typical script looks like this:
 	
- 	sender_pubnum 		= pubkey_to_pubnum( sender_pubkey )
-	recipient_pubnum 	= pubkey_to_pubnum( recipient_pubkey )
+	# 76       A9             0x14 
+	#OP_DUP OP_HASH160    Bytes to push
 
- 	outputs = [ 
-	  { # Amount to transfer (leave out the leading zeros and 4 byte checksum)
-	      value: amount, 
-	      scriptPubKey: "OP_DUP OP_HASH160 " + (recipient_pubnum.to_s(16).size / 2).to_s(16) + " " + recipient_pubnum.to_s(16) + " OP_EQUALVERIFY OP_CHECKSIG "
-	      # OP_DUP, etc is the default payment script: https://en.bitcoin.it/wiki/Script 
-	    }
-	]
-	 
-	if change > 0
-	  outputs << { 
-	    value: change, 
-	    scriptPubKey: "OP_DUP OP_HASH160 " + (sender_pubnum.to_s(16).size / 2).to_s(16) + " " + sender_pubnum.to_s(16) + " OP_EQUALVERIFY OP_CHECKSIG "
-	  }
-	  
-	end   
+	#89 AB CD EF AB BA AB BA AB BA AB BA AB BA AB BA AB BA AB BA   88         AC
+	#                      Data to push                     OP_EQUALVERIFY OP_CHECKSIG
 
-	scriptSig = "OP_DUP OP_HASH160 " + (sender_pubnum.to_s(16).size / 2).to_s(16) + " " + sender_pubnum.to_s(16) + " OP_EQUALVERIFY OP_CHECKSIG "
-
-	inputs.collect!{ |input|
-		{
-			previousTx: input[:previousTx],
-			index: input[:index],
-			# Add 1 byte for each script opcode:
-			scriptLength: sender_pubnum.to_s(16).length / 2 + 5, 
-			scriptSig: scriptSig, 
-			sequence_no: "ffffffff" # Ignored
-		}
+	
+ 	inputs.each { |input|
+		
+		input[:scriptLength] 	= 25
+		input[:scriptSig] 		= "OP_DUP OP_HASH160 14 #{ sender_pubnum.to_s(16) } OP_EQUALVERIFY OP_CHECKSIG" 
+		input[:sequence_no] 	= "ffffffff"  
 	} 
+	
+ 	
+	outputs = []
 
+	
+ 	output = {}
+ 	output[:value] = amount
+ 	output[:pubkeyScriptLength] = 25
+ 	output[:pubkeyScript] = "OP_DUP OP_HASH160 14 #{ recipient_pubnum.to_s(16) } OP_EQUALVERIFY OP_CHECKSIG" 
+ 	outputs << output		
+
+ 	if change > 0
+
+ 		output = {}
+	 	output[:value] = change
+	    output[:pubkeyScriptLength] = 25
+	    output[:pubkeyScript] = "OP_DUP OP_HASH160 14 #{ sender_pubnum.to_s(16) } OP_EQUALVERIFY OP_CHECKSIG"
+		outputs << output
+	end   
+ 	
 	
 
 	transaction = {
-		version: 1,
-		in_counter: inputs.count,
-		inputs: inputs,
-		out_counter: outputs.count,
-		outputs: outputs,
-		lock_time: 0,
-		hash_code_type: "01000000"
+		:version => 1,
+		:in_counter => inputs.count,
+		:inputs => inputs,
+		:out_counter => outputs.count,
+		:outputs => outputs,
+		:lock_time => 0,
+		:hash_code_type => "01000000"
 	}
-    
+
+	
     return transaction
 end
 
@@ -508,31 +511,28 @@ def make_signed_transaction( transaction , privkey )
 	puts "\nHash that we're going to sign: #{sha_second}"
 	 
 	privkey_num    		= bitcoin_wif_to_privnum( privkey )
-
 	pubkey65_hexstring  = bitcoin_privnum_to_pubkey65_hexstring( privkey_num )
 
 	
-	signature_binary = sign_with_privnum( privkey_num , sha_second )
-	signature = signature_binary.unpack("H*").first
+	signature_binary 	= sign_with_privnum( privkey_num , sha_second )
+	signature 			= signature_binary.unpack("H*").first
 	 
-	hash_code_type = "01"
-	signature_plus_hash_code_type_length = little_endian_hex_of_n_bytes((signature + hash_code_type).length / 2, 1)
-	pub_key_length = little_endian_hex_of_n_bytes( pubkey65_hexstring.length / 2, 1)
-	 
-	scriptSig = signature_plus_hash_code_type_length + " " + signature + " "  + hash_code_type + " "  + pub_key_length + " " + pubkey65_hexstring
+	hash_code_type 						 = "01"
+	signature_plus_hash_code_type_length = (signature + hash_code_type).length / 2
+	pub_key_length 						 = pubkey65_hexstring.length / 2
+	
+
+	scriptSig = signature_plus_hash_code_type_length.to_s + signature + hash_code_type + pub_key_length.to_s  + pubkey65_hexstring
 	 
 	# Replace scriptSig and scriptLength for each of the inputs:
-	transaction[:inputs].collect!{|input| 
-	  {
-	    previousTx:   input[:previousTx],
-	    index:        input[:index],
-	    scriptLength: scriptSig.gsub(" ","").length / 2,
-	    scriptSig:    scriptSig,
-	    sequence_no:  input[:sequence_no]
-	  }
+	transaction[:inputs].each { |input| 
+	  
+	    input[:scriptLength] 	= scriptSig.length / 2
+	    input[:scriptSig] 		= scriptSig
 	}
 	 
 	transaction[:hash_code_type] = ""
+
 	signed_transaction = serialize_transaction( transaction )
 		 
 	return signed_transaction
@@ -545,10 +545,14 @@ def little_endian_hex_of_n_bytes(i, n)
 	i.to_s(16).rjust(n * 2,"0").scan(/(..)/).reverse.join()
 end
  
+#----
+def reverse_byte_order(str)
+	return str.scan(/(..)/).reverse.join()
+end
 
 #---------------
 def parse_script(script)
-	script.gsub("OP_DUP", "76").gsub("OP_HASH160", "a9").gsub("OP_EQUALVERIFY", "88").gsub("OP_CHECKSIG", "ac")
+	script.gsub("OP_DUP", "76").gsub("OP_HASH160", "a9").gsub("OP_EQUALVERIFY", "88").gsub("OP_CHECKSIG", "ac").gsub(" ","")
 end
  
 
@@ -562,13 +566,12 @@ def serialize_transaction(transaction)
 	# You can also use: transaction[:version].pack("V") 
 	 
 	# Number of inputs
-	tx << little_endian_hex_of_n_bytes(transaction[:in_counter],1)
-	 
+	tx << little_endian_hex_of_n_bytes( transaction[:in_counter], 1 )
 	transaction[:inputs].each do |input|
 		tx << little_endian_hex_of_n_bytes(input[:previousTx].hex, input[:previousTx].length / 2)
 		tx << little_endian_hex_of_n_bytes(input[:index],4) 
-		tx << little_endian_hex_of_n_bytes(input[:scriptLength], 1 )
-		tx << parse_script(input[:scriptSig]) 
+		tx << little_endian_hex_of_n_bytes(input[:scriptLength],1)
+		tx << parse_script(input[:scriptSig])
 		tx << input[:sequence_no] 
 	end
 	  
@@ -576,21 +579,109 @@ def serialize_transaction(transaction)
 	tx << little_endian_hex_of_n_bytes(transaction[:out_counter],1)
 	  
 	transaction[:outputs].each do |output|
-		tx << little_endian_hex_of_n_bytes((output[:value] * 100000000).to_i,8) 
-		unparsed_script = output[:scriptPubKey]
+		tx << little_endian_hex_of_n_bytes( output[:value].to_i, 8) 
+		unparsed_script = output[:pubkeyScript]
 		# Parse the script commands into hex opcodes (yes this is lame):
-		tx << little_endian_hex_of_n_bytes(parse_script(unparsed_script).gsub(" ", "").length / 2, 1) 
+		tx << little_endian_hex_of_n_bytes( parse_script(unparsed_script).length / 2 , 1 ) 
 		tx << parse_script(unparsed_script)
 	end
 	  
 	tx << little_endian_hex_of_n_bytes(transaction[:lock_time],4)
 	tx << transaction[:hash_code_type] # This is empty after signing
-	return tx.gsub(" ","")
+	
 end
 
 
 
+#------------
 
+def get_var_length_val( transaction_hex, pt )
+
+	val = transaction_hex[ (pt * 2)...(pt + 1)*2 ].to_i(16)
+	pt_off = 1
+
+	if val == 0xfd  
+		val = transaction_hex[ (pt+1)*2...(pt+3)*2].to_i(16)
+		pt_off = 3
+	elsif val == 0xfe 
+		val = transaction_hex[(pt+1)*2...(pt+5)*2].to_i(16)
+		pt_off = 5
+	elsif val == 0xff
+		val = transaction_hex[(pt+1)*2...(pt+9)*2].to_i(16)
+		pt_off = 9
+	end
+
+	return [ val , pt_off ]
+
+end
+
+
+# Put the hex string back to data structure
+def deserialize_transaction( transaction_hex ) 
+
+	transaction = {}
+	transaction[:version] 		= reverse_byte_order( transaction_hex[0...8] ).to_i(16)
+	transaction[:in_counter] 	= transaction_hex[8...10].to_i(16)
+	pt = 4
+
+	get_next_val 				= get_var_length_val( transaction_hex, pt )
+	transaction[:in_counter] 	== get_next_val[0]
+	pt += get_next_val[1]
+
+	
+	transaction[:inputs] = []
+	(0...transaction[:in_counter]).each { | i |
+		
+		input = {}
+		input[:prevhash] 		= reverse_byte_order( transaction_hex[ (pt * 2)...(pt + 32)*2 ] )
+		pt += 32
+		input[:prevoutputindex] = reverse_byte_order( transaction_hex[ (pt * 2)...(pt + 4)*2 ] ).to_i(16)
+		pt += 4
+
+		get_next_val 			= get_var_length_val( transaction_hex, pt )
+		input[:scriptLength] 	= get_next_val[0]	
+		pt += get_next_val[1]
+
+		script_sig = []
+		(0...input[:scriptLength]).each { |j|
+			script_sig << transaction_hex[ (pt * 2)...(pt + 1)*2]
+			pt += 1
+		}
+		input[:scriptSig] = script_sig.join(" ")
+		input[:sequence] = transaction_hex[ (pt * 2)...(pt + 4)*2]
+		pt += 4
+		transaction[:inputs] << input
+	}
+	
+	get_next_val 				= get_var_length_val( transaction_hex, pt )
+	transaction[:out_counter] 	= get_next_val[0]
+	pt += get_next_val[1]
+	
+
+	transaction[:outputs] = []
+	(0...transaction[:out_counter]).each { |i| 
+		output = {}
+		output[:value] = reverse_byte_order( transaction_hex[ (pt * 2)...(pt + 8)*2] ).to_i(16)
+		pt += 8
+
+		get_next_val = get_var_length_val( transaction_hex, pt )
+		output[:pubkeyScriptLength] =  get_next_val[0]
+		pt += get_next_val[1]
+
+		pubkeyScriptSig = []
+		(0...output[:pubkeyScriptLength]).each { |j| 
+			pubkeyScriptSig <<  transaction_hex[ (pt * 2)...(pt + 1)*2]
+			pt += 1
+		}
+		output[:pubkeyScriptSig] = pubkeyScriptSig
+
+		transaction[:outputs] << output
+	}
+
+	transaction[:lock_time] = transaction_hex[ (pt * 2)...(pt + 4)*2]
+
+	return transaction
+end
 
 
 

@@ -21,7 +21,7 @@ def main( argv )
 			return  
 		end	
 		
-		utx =  make_raw_transaction( argv[0] , argv[1] , argv[2] , argv[3] ) 
+		utx =  make_raw_transaction( argv[0] , argv[1]  , argv[3].to_i ) 
 		
 		p utx
 		tx  = make_signed_transaction( utx , argv[2] )
@@ -31,7 +31,7 @@ def main( argv )
 
 		
 	else
-		printf "Usage : ruby %s <from pubkey> <to pubkey> <privkey> <amount>\n", __FILE__
+		printf "Usage : ruby %s <from pubkey> <to pubkey> <privkey> <amount_in_satoshis>\n", __FILE__
 	end
 
 end
