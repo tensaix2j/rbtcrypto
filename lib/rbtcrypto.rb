@@ -359,12 +359,22 @@ end
 def get_balance( pubkey ) 
 	
 	
-	url = "http://blockchain.info/address/#{ pubkey }?format=json"
- 	res = JSON.parse(open(url).read)
-	balance = res["final_balance"]
-
+	url 			= "http://blockchain.info/address/#{ pubkey }?format=json"
+ 	res 			= JSON.parse(open(url).read)
+	balance 		= res["final_balance"]
+	
 	return balance
 end
+
+#-----
+def get_account_status( pubkey ) 
+
+	url 			= "http://blockchain.info/address/#{ pubkey }?format=json"
+ 	res 			= JSON.parse(open(url).read)
+	return res
+
+end
+
 
 #----------
 def get_unspent( pubkey ) 
@@ -647,7 +657,7 @@ def deserialize_transaction( transaction_hex )
 			script_sig << transaction_hex[ (pt * 2)...(pt + 1)*2]
 			pt += 1
 		}
-		input[:scriptSig] = script_sig.join(" ")
+		input[:scriptSig] = script_sig
 		input[:sequence] = transaction_hex[ (pt * 2)...(pt + 4)*2]
 		pt += 4
 		transaction[:inputs] << input
@@ -683,5 +693,22 @@ def deserialize_transaction( transaction_hex )
 	return transaction
 end
 
+#-------------
+def verify_signature ( scriptSig )
+
+	signature_plus_hashcode_length = scriptSig[0].to_i(16)
+	signature_der  = scriptSig[1...signature_plus_hashcode_length ].join()
+	hash_code_type = scriptSig[signature_plus_hashcode_length ]  
+	
+	
 
 
+	x_str = scriptSig[74...74+32].join()
+	y_str = scriptSig[106...106+32].join()
+	pubkey = "04" + x_str + y_str
+
+
+
+
+
+end
