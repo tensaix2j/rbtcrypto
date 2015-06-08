@@ -362,7 +362,7 @@ end
 def get_balance( pubkey ) 
 	
 	
-	url 			= "http://blockchain.info/address/#{ pubkey }?format=json"
+	url 			= "https://blockchain.info/address/#{ pubkey }?format=json"
  	res 			= JSON.parse(open(url).read)
 	balance 		= res["final_balance"]
 	
