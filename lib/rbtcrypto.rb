@@ -3,6 +3,9 @@ require 'rubygems'
 require 'open-uri'
 require 'digest/sha2'
 require 'json'
+require 'openssl'
+
+ENV["SSL_CERT_FILE"] = "#{ File.dirname(__FILE__) }/../cacert.pem"
 
 
 @INFINITY = [nil,nil]
@@ -369,7 +372,7 @@ end
 #-----
 def get_account_status( pubkey ) 
 
-	url 			= "http://blockchain.info/address/#{ pubkey }?format=json"
+	url 			= "https://blockchain.info/address/#{ pubkey }?format=json"
  	res 			= JSON.parse(open(url).read)
 	return res
 
