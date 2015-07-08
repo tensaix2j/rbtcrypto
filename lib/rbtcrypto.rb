@@ -361,10 +361,11 @@ end
 #----------
 def get_balance( pubkey ) 
 	
-	
-	url 			= "https://blockchain.info/address/#{ pubkey }?format=json"
- 	res 			= JSON.parse(open(url).read)
-	balance 		= res["final_balance"]
+	#url 			= "https://blockchain.info/address/#{ pubkey }?format=json"
+	url 			= "https://blockchain.info/multiaddr?cors=true&active=#{ pubkey }"
+	res 			= JSON.parse(open(url).read)
+
+	balance 		= res["addresses"][0]["final_balance"]
 	
 	return balance
 end
@@ -372,9 +373,11 @@ end
 #-----
 def get_account_status( pubkey ) 
 
-	url 			= "https://blockchain.info/address/#{ pubkey }?format=json"
- 	res 			= JSON.parse(open(url).read)
-	return res
+	#url 			= "https://blockchain.info/address/#{ pubkey }?format=json"
+ 	url 			= "https://blockchain.info/multiaddr?cors=true&active=#{ pubkey }"
+	res 			= JSON.parse(open(url).read)
+
+	return res["addresses"][0]
 
 end
 
