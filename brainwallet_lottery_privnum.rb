@@ -19,7 +19,7 @@ def main( argv )
 
 		
 	else
-		printf "Usage : ruby %s <passphrase>\n", __FILE__
+		printf "Usage : ruby %s <privnum>\n", __FILE__
 	end
 
 end
