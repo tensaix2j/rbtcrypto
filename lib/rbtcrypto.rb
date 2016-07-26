@@ -323,6 +323,16 @@ def bitcoin_generate_key_pair_by_passphrase( passphrase )
 end
 
 
+#-----
+def bitcoin_generate_key_pair_by_privnum( privnum ) 
+
+	privkey =  bitcoin_privnum_to_wif( privnum )
+	pubkey  =  bitcoin_privnum_to_pubkey( privnum )
+
+	return [ privkey , pubkey ]
+	
+end
+
 #----
 def pubkey_to_pubnum( pubkey )
 
@@ -361,7 +371,16 @@ end
 #----------
 def get_balance( pubkey ) 
 	
-	#url 			= "https://blockchain.info/address/#{ pubkey }?format=json"
+	# Any one of these will do.
+	#https://blockchain.info/address/#{ pubkey }?format=json
+	#res["final_balance"]
+
+	#https://blockchain.info/multiaddr?cors=true&active=#{ pubkey }
+	#res["addresses"][0]["final_balance"]
+
+	#http://btc.blockr.io/api/v1/address/info/#{ pubkey }
+	#res["data"]["balance"] in btc
+
 	url 			= "https://blockchain.info/multiaddr?cors=true&active=#{ pubkey }"
 	res 			= JSON.parse(open(url).read)
 
