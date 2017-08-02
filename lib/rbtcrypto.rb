@@ -4,7 +4,6 @@ require 'open-uri'
 require 'digest/sha2'
 require 'json'
 require 'openssl'
-require 'drbg-rb'
 
 
 ENV["SSL_CERT_FILE"] = "#{ File.dirname(__FILE__) }/../cacert.pem"
