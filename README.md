@@ -20,9 +20,16 @@ To get the public address from private key number(256 bit number):
 
 
 ```sh
-ruby privnum_to_pub.rb <private key(256 bit number)>
+ruby privnum_to_pub.rb <private key(256 bit number in decimal form)>
 ```
 
+
+
+To get the public address from private key number (base58 number)
+
+```sh
+ruby privbase58_to_pub.rb <private key (base58 string)>
+```
 
 
 To generate new address:
