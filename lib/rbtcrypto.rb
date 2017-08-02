@@ -284,6 +284,11 @@ def bitcoin_privnum_to_wif( num )
 end
 
 
+#------------
+def bitcoin_privbase58_to_privnum( privbase58 )
+	return base58str_tonum( privbase58 )
+end	
+
 #-----
 # wallet import format to private key
 def bitcoin_privkey_to_privnum( privkey) 
