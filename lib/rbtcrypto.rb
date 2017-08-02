@@ -4,6 +4,8 @@ require 'open-uri'
 require 'digest/sha2'
 require 'json'
 require 'openssl'
+require 'drbg-rb'
+
 
 ENV["SSL_CERT_FILE"] = "#{ File.dirname(__FILE__) }/../cacert.pem"
 
@@ -298,8 +300,16 @@ end
 #-----
 def bitcoin_generate_key_pair() 
 
-	# Todo: Use a better random seed.
-	privnum = rand(  2 ** 256 )  % @order
+	fp = File.open("/dev/urandom",'rb')
+	random_bytes = fp.read(32).unpack("Q*")
+	fp.close 
+
+	privnum = random_bytes[0]
+	random_bytes.shift
+	random_bytes.each { |i|
+		privnum *= i
+	}
+
 	privkey = bitcoin_privnum_to_wif( privnum )
 	pubkey  = bitcoin_privnum_to_pubkey( privnum )
 
