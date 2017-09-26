@@ -11,11 +11,9 @@ def main( argv )
 		puts "Public address : #{ keypair[1] }"
 		
 		res = get_account_status( keypair[1] )
-
-		puts "Received      : %.8f BTC" % (res["total_received"].to_f / 100000000)
-		puts "Sent          : %.8f BTC" % (res["total_sent"].to_f / 100000000)
-		puts "Final Balance : %.8f BTC" % (res["final_balance"].to_f / 100000000)
-
+		res.keys.each { |key|
+			puts "#{key} : #{ res[key] }"
+		}
 
 		
 	else

@@ -384,33 +384,74 @@ end
 
 #----------
 def get_balance( pubkey ) 
+
+	#------------
+	# Blockchain.info	
+	begin 
+		url 		= "https://blockchain.info/multiaddr?cors=true&active=#{ pubkey }"
+		res 		= JSON.parse(open(url).read)
+		return 		res["addresses"][0]["final_balance"] / 100000000.0
+	rescue Exception => ex 
+		puts "Error using url #{url}, try with next url."
+	end
 	
-	# Any one of these will do.
-	#https://blockchain.info/address/#{ pubkey }?format=json
-	#res["final_balance"]
+	#--------------
+	# Chain.so
+	begin 
+		url 		= "https://chain.so/api/v2/get_address_balance/BTC/#{ pubkey }"
+		res 		= JSON.parse(open(url).read)
+		return 		res["data"]["unconfirmed_balance"]
+	rescue Exception => ex 
+		puts "Error using url #{url}, try with next url."
+	end
 
-	#https://blockchain.info/multiaddr?cors=true&active=#{ pubkey }
-	#res["addresses"][0]["final_balance"]
-
-	#http://btc.blockr.io/api/v1/address/info/#{ pubkey }
-	#res["data"]["balance"] in btc
-
-	url 			= "https://blockchain.info/multiaddr?cors=true&active=#{ pubkey }"
-	res 			= JSON.parse(open(url).read)
-
-	balance 		= res["addresses"][0]["final_balance"]
-	
-	return balance
+	return 0.0	
+		
 end
+
+
+
 
 #-----
 def get_account_status( pubkey ) 
 
-	#url 			= "https://blockchain.info/address/#{ pubkey }?format=json"
- 	url 			= "https://blockchain.info/multiaddr?cors=true&active=#{ pubkey }"
-	res 			= JSON.parse(open(url).read)
+	
+	#---------------
+	# Blockexplorer.com 
+	begin 
+		url 		= "https://blockexplorer.com/api/addr/#{ pubkey }?noTxList=1&noCache=1"
+		puts url
+		res 		= JSON.parse(open(url).read)
+		return 		res
+	rescue Exception => ex 
+		puts "Error using url #{url}, try with next url."
+	end
+	
+	
+	#-------------------------
+	# Chain.so
+	begin 
+		url 		= "https://chain.so/api/v2/get_address_balance/BTC/#{ pubkey }"
+		puts url
+		res 		= JSON.parse(open(url).read)
+		return 		res["data"]
+	rescue Exception => ex 
+		puts "Error using url #{url}, try with next url."
+	end
 
-	return res["addresses"][0]
+	#-----------------------	
+	# Blockchain.info	
+	begin 
+		url 		= "https://blockchain.info/multiaddr?cors=true&active=#{ pubkey }"
+		puts url
+		res 		= JSON.parse(open(url).read)
+		return 		res["addresses"][0]
+	rescue Exception => ex 
+		puts "Error using url #{url}, try with next url."
+	end
+
+
+	return {}
 
 end
 
