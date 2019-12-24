@@ -256,17 +256,43 @@ def bitcoin_privnum_to_pubkey( privkey_num )
 	return "1" + pubkey_base58
 end
 
+#------------
+def bitcoin_privnum_to_pubkey_compressed( privkey_num )
+
+	pubkey_point = mul( [ @G_x, @G_y] , privkey_num )
+	
+	x_str = number_to_string(  pubkey_point[0] , @order )
+		
+	pubkey_sha256 =  Digest::SHA256.hexdigest( unhexlify( "03" + x_str ) )
+	pubkey_ripemd160 =  Digest::RMD160.hexdigest( unhexlify( pubkey_sha256 ) )
+
+	# now the checksum
+	chksum_sha256_r1 = Digest::SHA256.hexdigest( unhexlify( "00" + pubkey_ripemd160 ) )
+	chksum_sha256_r2 = Digest::SHA256.hexdigest( unhexlify( chksum_sha256_r1 ) )
+
+	pubkey_num = ( pubkey_ripemd160 + chksum_sha256_r2[0...8]).to_i(16)
+	pubkey_base58 = number_to_base58str( pubkey_num )
+	return "1" + pubkey_base58
+end
+
 
 
 #---------------
 	
-def bitcoin_privkey_to_pubkey( privkey )	
+def bitcoin_privkey_to_pubkey( wif )	
 
-	assert("Invalid Address") { bitcoin_verify_privkey( privkey ) }
+	assert("Invalid Address") { bitcoin_verify_privkey( wif ) }
 	# stripping off the checksum
-	privnum = bitcoin_wif_to_privnum( privkey )
-	return bitcoin_privnum_to_pubkey( privnum )
+	privnum = bitcoin_wif_to_privnum( wif )
 
+	if ["K","L"].index(wif[0...1]) 
+		return [ 
+			bitcoin_privnum_to_pubkey_compressed( privnum ),
+			bitcoin_privnum_to_pubkey( privnum )
+		]
+	else
+		return bitcoin_privnum_to_pubkey( privnum )
+	end
 end
 
 
@@ -283,6 +309,17 @@ def bitcoin_privnum_to_wif( num )
 	return number_to_base58str( (extended_hexstr + r2[0...8] ).to_i(16) )
 end
 
+def bitcoin_privnum_to_wif_compressed( num )
+
+	extended_hexstr =  "80" +  num.to_s(16).rjust( 64, "0" ) + "01" 
+	# private key checksum ...
+	r1 = Digest::SHA256.hexdigest( unhexlify(extended_hexstr) )
+	r2 = Digest::SHA256.hexdigest( unhexlify(r1) )
+
+	return number_to_base58str( (extended_hexstr + r2[0...8] ).to_i(16) )
+end
+
+
 
 #------------
 def bitcoin_privbase58_to_privnum( privbase58 )
@@ -298,8 +335,30 @@ end
 # Same thing
 def bitcoin_wif_to_privnum( wif ) 
 
-	return base58str_tonum( wif )/ (2**32) % (2**256)
+	if ["K","L"].index(wif[0...1]) 
+		# Compressed
+
+		compressed_wif = wif
+		p base58str_tonum( compressed_wif ).to_s(16)
+		p base58str_tonum( compressed_wif ).to_s(16)[2...66]
+
+		return ( "0x" + base58str_tonum( compressed_wif ).to_s(16)[2...66] ).to_i(16)
+	else
+		# Uncompressed
+		return base58str_tonum( wif )/ (2**32) % (2**256)
+	end
 end
+
+
+
+def uncompress_wif( compressed_wif) 
+	if ["K","L"].index(compressed_wif[0...1]) 
+		return bitcoin_privnum_to_wif( ( "0x" + base58str_tonum( compressed_wif ).to_s(16)[2...66] ).to_i(16)  )
+	else
+		return compressed_wif
+	end
+end
+
 
 #-----
 def bitcoin_generate_key_pair() 
@@ -342,8 +401,8 @@ def bitcoin_generate_key_pair_by_privnum( privnum )
 
 	privkey =  bitcoin_privnum_to_wif( privnum )
 	pubkey  =  bitcoin_privnum_to_pubkey( privnum )
-
-	return [ privkey , pubkey ]
+	pubkey_compressed = bitcoin_privnum_to_pubkey_compressed( privnum )
+	return [ privkey , pubkey , pubkey_compressed ]
 	
 end
 
@@ -375,9 +434,16 @@ def bitcoin_verify_pubkey( pubkey )
 end
 
 #----
-def bitcoin_verify_privkey( privkey ) 
+def bitcoin_verify_privkey( wif ) 
 
-	return bitcoin_privnum_to_wif( bitcoin_wif_to_privnum( privkey ) ) == privkey
+	privnum = bitcoin_wif_to_privnum( wif )
+
+	if ["K","L"].index(wif[0...1]) 
+		wif2 = bitcoin_privnum_to_wif_compressed( privnum )
+	else
+		wif2 = bitcoin_privnum_to_wif( privnum  )
+	end
+	return wif == wif2 
 end
 
 #-
