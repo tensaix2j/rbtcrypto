@@ -339,9 +339,7 @@ def bitcoin_wif_to_privnum( wif )
 		# Compressed
 
 		compressed_wif = wif
-		p base58str_tonum( compressed_wif ).to_s(16)
-		p base58str_tonum( compressed_wif ).to_s(16)[2...66]
-
+		
 		return ( "0x" + base58str_tonum( compressed_wif ).to_s(16)[2...66] ).to_i(16)
 	else
 		# Uncompressed
