@@ -1,13 +1,14 @@
-
 require_relative 'lib/rbtcrypto.rb'
 
 #-------------
 def main( argv )
+	
 	if argv.length > 0 
-		p bitcoin_privkey_to_pubkey argv[0]
+		p uncompress_wif( argv[0] ) 
 	else
-		printf "Usage : ruby %s <privatekey WIF>\n", __FILE__
-	end	
+		printf "Usage : ruby %s <compressed_wif Kxxxx or Lxxx>\n", __FILE__
+	end
+
 end
 
 main ARGV
